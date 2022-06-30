@@ -45,7 +45,15 @@ class TriviaTestCase(unittest.TestCase):
 
         self.assertEqual(res.status_code, 200)
         self.assertEqual(data["success"], True)
-        self.assertTrue(data["Categories"])
+        self.assertTrue(data["categories"])
+
+    def test_404_category_input_out_of_range(self):
+        res = self.client().get('categories/100/questions')
+        data = json.loads(res.data)
+
+        self.assertEqual(data['error'], 404)
+        self.assertEqual(data['success'], False)
+
 
     def test_get_questions(self):
         res = self.client().get("/questions")
@@ -54,10 +62,16 @@ class TriviaTestCase(unittest.TestCase):
 
         self.assertEqual(res.status_code, 200)
         self.assertEqual(data["success"], True)
-        self.assertTrue(data["Questions"])
-        self.assertTrue(data["Total Number of Questions"])
+        self.assertTrue(data["questions"])
+        self.assertEqual(data["current_category"], None)
         self.assertTrue(data["categories"])
 
+    def test_404_unknown_page_numbers(self):
+        res = self.client().get('/questions?page=100230')
+        data = json.loads(res.data)
+        
+        self.assertEqual(data['error'], 404)
+        self.assertEqual(data['success'], False)
 
     def test_delete_question(self):
         res = self.client().delete("/questions/5")
@@ -88,17 +102,56 @@ class TriviaTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(data["success"], True)
         self.assertTrue(data["created"])
-        self.assertTrue(len(data["Questions"]))
+        self.assertTrue(data["total_questions"])
 
     def test_404_if_question_creation_not_allowed(self):
-        self.new_question = {"question": "What is your name", "answer": "Adeyi Q", "category": "5", "difficulty": 10}
-
+        self.new_question = {"question": "What is your name", "answer": "Adeyi Q", "category": 89, "difficulty": 10}
         res = self.client().post("/questions/45", json=self.new_question)
         data = json.loads(res.data)
 
         self.assertEqual(res.status_code, 405)
         self.assertEqual(data["success"], False)
         self.assertEqual(data["message"], "method not allowed")
+
+    def test_search_question(self):
+        self.search_term = {"searchTerm": "name"}
+        res = self.client().post("/questions/search", json=self.search_term)
+        data = json.loads(res.data)
+
+        self.assertEqual(data['success'], True)
+        self.assertTrue(data['questions'])
+        self.assertTrue(data['total_questions'])
+
+
+    def test_404_invalid_search_term(self):
+        self.search_term = {"searchTerm": "hmafmknfnjanjnfj"}
+        res = self.client().post("/questions/search", json=self.search_term)
+        data = json.loads(res.data)
+
+        self.assertEqual(data['success'], False)
+        self.assertEqual(data['error'], 404)
+        self.assertEqual(data['message'], "There is no matching question for this search")
+
+    def test_quiz_play(self):
+        data_c = {
+            'previous_questions':[2, 6],
+            'quiz_category': {
+                'id': 5,
+                'type': 'Entertainment'
+            }
+        }
+
+        res = self.client().post('/quizzes', json=data_c)
+        data = json.loads(res.data)
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(data['success'], True)
+        self.assertTrue(data['question'])
+
+        self.assertNotEqual(data['question']['id'], 2)
+        self.assertNotEqual(data['question']['id'], 6)
+
+        self.assertEqual(data['question']['category'], 5) 
 
 # Make the tests conveniently executable
 if __name__ == "__main__":
